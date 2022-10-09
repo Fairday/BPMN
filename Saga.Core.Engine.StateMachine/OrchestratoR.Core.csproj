@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="QuikGraph.Graphviz" />
+		<PackageReference Include="Seedwork.FunctionalStyleBuildingBlocks" Version="14.0.0" />
+		<PackageReference Include="Seedwork.Messaging.Contracts" />
+		<PackageReference Include="Newtonsoft.Json" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Components\Data\Implementations\" />
+	  <Folder Include="Components\InternalEvents\Implementations\" />
+	  <Folder Include="Setups\Gateways\" />
+	  <Folder Include="Setups\Processes\" />
+	  <Folder Include="WorkflowBuilders\Implementations\" />
+	</ItemGroup>
+
+</Project>
