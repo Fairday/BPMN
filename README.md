@@ -5,222 +5,179 @@ Work status: in progress
 Possible DSL example of defining BPMN directly from C# code.
 
 ```
-    public class ProcessManagerPrimer : ProcessManager<ProcessManagerPrimer>
+namespace Saga.Core.Engine.StateMachine.Abstractions
+{
+    public class NestedProcess : Process<OutputE>
     {
-        public ProcessManagerPrimer()
+        public NestedProcess(string name) : base(name)
         {
-            UnionEvents(Root_CheckedOk1, Root_CheckedOk2)
-                .WhenRaisedAll()
-                .ThenRaise(Root_Checked);
-
-            Event(Root_CheckedNotOk)
-                .WhenRaised()
-                .ThenRaise(Aborted);
-
-            During(Root1)
-                .JustWait(Root_Checked)
-                .ThenWhenLeave()
-                .TransitionTo(Root3);
-
-            During(Root2)
-                .JustWait(Root_Checked)
-                .ThenWhenLeave()
-                .TransitionTo(Root3);
-
-            WhenLeave(Root3)
-                .TransitionTo(A)
-                .TransitionTo(D)
-                .TransitionTo(J);
-
-            WhenEnter(A)
-                .Send(_ => new CheckA())
-                .ThenDuring()
-                .WhenReceived(A_Checked, ctx => ctx.DoNothing())
-                .ThenWhenLeave()
-                .TransitionToIfElse(B, F, _ => A_Checked.Message.IsSuccessfully)
-                .TransitionTo(C);
-
-            WhenEnter(B)
-                .Send(_ => new CheckB())
-                .ThenDuring()
-                .JustWait(B_Checked1)
-                .JustWait(B_Checked2)
-                .JustWait(B_Checked3)
-                .ThenWhenLeave()
-                //.TransitionToIfElse(C, F, _ => B_Checked.Message.IsSuccessfully)
-                .TransitionTo(C);
-
-            WhenEnter(C)
-                .Send(_ => new CheckC())
-                .ThenDuring()
-                .JustWait(C_Checked)
-                .ThenWhenLeave()
-                //.TransitionToIfElse(D, F, _ => C_Checked.Message.IsSuccessfully);
-                //check it
-                //.TransitionTo(C);
-                .TransitionTo(F);
-
-            WhenEnter(D)
-                //.Send(_ => new CheckD())
-                .ThenDuring()
-                //.JustWait(D_Checked)
-                .ThenWhenLeave()
-                //.TransitionToIfElse(E, F, _ => D_Checked.Message.IsSuccessfully)
-                .TransitionTo(E);
-
-            WhenEnter(E)
-                .Send(_ => new CheckE())
-                .ThenDuring()
-                //.WhenReceived(E_Checked, (ctx) => ctx.AbortProcess())
-                .JustWait(E_Checked)
-                .ThenWhenLeave()
-                .TransitionTo(F);
-
-            During(F)
-                .JustWait(Root_Checked);
-
-            WhenLeave(F)
-                .TransitionTo(M);
-
-            WhenLeave(M)
-                .TransitionTo(L);
-
-            WhenLeave(J)
-                .TransitionTo(M);
-
-            WhenLeave(L)
-                .TransitionTo(O);
-
-            WhenLeave(O)
-                .Finish();
-
-            //наложение
-            //WhenLeave(F)
-            //    .Finish()
-            //    //where f leave
-            //    .Publish(_ => new AllChecksFinished());
+            After(OutputEHandler)
+                .Then(Completed);
         }
 
-        public IState<ProcessManagerPrimer> Root1 { get; private set; }
-        public IState<ProcessManagerPrimer> Root2 { get; private set; }
-        public IState<ProcessManagerPrimer> Root3 { get; private set; }
-        public IState<ProcessManagerPrimer> A { get; private set; }
-        public IState<ProcessManagerPrimer> B { get; private set; }
-        public IState<ProcessManagerPrimer> C { get; private set; }
-        public IState<ProcessManagerPrimer> D { get; private set; }
-        public IState<ProcessManagerPrimer> E { get; private set; }
-        public IState<ProcessManagerPrimer> F { get; private set; }
-        public IState<ProcessManagerPrimer> M { get; private set; }
-        public IState<ProcessManagerPrimer> L { get; private set; }
-        public IState<ProcessManagerPrimer> J { get; private set; }
-        public IState<ProcessManagerPrimer> O { get; private set; }
-
-        public IProcessMessageEvent<AChecked> A_Checked { get; private set; }
-        public IProcessMessageEvent<BChecked1> B_Checked1 { get; private set; }
-        public IProcessMessageEvent<BChecked2> B_Checked2 { get; private set; }
-        public IProcessMessageEvent<BChecked3> B_Checked3 { get; private set; }
-        public IProcessMessageEvent<CChecked> C_Checked { get; private set; }
-        public IProcessMessageEvent<DChecked> D_Checked { get; private set; }
-        public IProcessMessageEvent<EChecked> E_Checked { get; private set; }
-        public IProcessEvent Root_Checked { get; private set; }
-        public IProcessMessageEvent<RootCheckedOk1> Root_CheckedOk1 { get; private set; }
-        public IProcessMessageEvent<RootCheckedOk2> Root_CheckedOk2 { get; private set; }
-        public IProcessMessageEvent<RootCheckedNotOk> Root_CheckedNotOk { get; private set; }
+        public IActionTaskWithInput<OutputE> OutputEHandler { get; }
     }
 
-    public class AllChecksFinished : IEvent
+    public class NestedProcessWithResult : ProcessWithResult<OutputE, ProcessedOutputE>
     {
-        public string CorrelationId { get; }
+        public NestedProcessWithResult(string name) : base(name)
+        {
+            After(OutputEHandler)
+                .ThenClarifyType(OutputEHandler)
+                .ExtractData(u => u.Output)
+                .TransmitTo(Finish);
+        }
+
+        public IActionTaskWithInputAndResult<OutputE, ProcessedOutputE> OutputEHandler { get; }
     }
 
-    public class CheckA : ICommand
+    public class ExampleProcess : Process<ExampleInput>
     {
-        public string CorrelationId { get; }
-        public string Destination { get; }
+        public ExampleProcess(string name) : base(name)
+        {
+            EventA
+                .Setup()
+                .OverrideName("Overriden Event A");
+
+            StartAt(EventA)
+                .ExtractData(u => u.CaughtMessage)
+                .TransmitTo(TaskA)
+                .ExtractData(u => u.Output)
+                .TransmitTo(TaskAB)
+                .ExtractData(e => e.ReplyMessage)
+                .TransmitTo(TaskC);
+
+            StartAt(EventB)
+                .ExtractData(u => u.CaughtMessage)
+                .TransmitTo(TaskB)
+                .Then(EventС)
+                .ThenClarifyType(EventС)
+                .ExtractData(u => u.CaughtMessage)
+                .TransmitTo(TaskCC);
+
+            StartAt(AAA)
+                .Then(TaskAAA)
+                .Then(TaskBBB)
+                .Then(TaskCCC)
+                .Then(TaskDDD);
+
+            StartAt(EventD)
+                .ThenParallel(TaskE, TaskF, TaskG, TaskJ);
+
+            AfterResult(TaskE)
+                .TransmitTo(TaskEE);
+
+            AfterResult(TaskE)
+                .TransmitTo(NestedProcess);
+
+            AfterResult(TaskE)
+                .TransmitTo(NestedProcessWithResult)
+                .ExtractData(u => u.Result)
+                .TransmitTo(ProcessedOutputEHandler);
+
+            AfterResult(TaskF)
+                .TransmitTo(TaskFF);
+
+            AfterResult(TaskG)
+                .TransmitTo(TaskGG);
+
+            AfterResult(TaskJ)
+                .TransmitTo(TaskJJ);
+
+            AfterAll(TaskEE, TaskFF, TaskGG, TaskJJ, TaskDDD, TaskCC, TaskC, NestedProcess, ProcessedOutputEHandler)
+                .Then(Completed);
+        }
+
+        public ICatchingMessageEvent<MessageA> EventA { get; }
+        public ICatchingMessageEvent<MessageB> EventB { get; }
+        public ICatchingMessageEvent<MessageС> EventС { get; }
+        public IActionTaskWithInputAndResult<MessageA, OutputA> TaskA { get; }
+        public IActionTaskWithInput<MessageB> TaskB { get; }
+        public IRequestReplyTask<OutputA, RequestB, ReplyB> TaskAB { get; }
+        public ISendMessageTask<ReplyB, ReplyB> TaskC { get; }
+        public ISendMessageTask<MessageС, MessageCC> TaskCC { get; }
+        public ITimerEvent EventD { get; }
+        public IEmptyEvent AAA { get; }
+        public IActionTask TaskAAA { get; }
+        public IActionTask TaskBBB { get; }
+        public IActionTask TaskCCC { get; }
+        public IActionTask TaskDDD { get; }
+        public ITerminationEvent TerminationA { get; }
+        public IActionTaskWithResult<OutputE> TaskE { get; }
+        public IActionTaskWithResult<OutputF> TaskF { get; }
+        public IActionTaskWithResult<OutputG> TaskG { get; }
+        public IActionTaskWithResult<OutputJ> TaskJ { get; }
+        public IActionTaskWithInput<OutputE> TaskEE { get; }
+        public IActionTaskWithInput<OutputF> TaskFF { get; }
+        public IActionTaskWithInput<OutputG> TaskGG { get; }
+        public IActionTaskWithInput<OutputJ> TaskJJ { get; }
+        public NestedProcess NestedProcess { get; }
+        public NestedProcessWithResult NestedProcessWithResult { get; }
+        public IActionTaskWithInput<ProcessedOutputE> ProcessedOutputEHandler { get; }
     }
 
-    public class CheckB : ICommand
+    #region messages
+
+    public class ExampleInput
     {
-        public string CorrelationId { get; }
-        public string Destination { get; }
+
     }
 
-    public class CheckC : ICommand
+    public class MessageA
     {
-        public string CorrelationId { get; }
-        public string Destination { get; }
+
     }
 
-    public class CheckD : ICommand
+    public class MessageB
     {
-        public string CorrelationId { get; }
-        public string Destination { get; }
+
     }
 
-    public class CheckE : ICommand
+    public class MessageС
     {
-        public string CorrelationId { get; }
-        public string Destination { get; }
+
     }
 
-    public class AChecked : IEvent
+    public class OutputA
     {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; init; }
+
+    }
+    public class RequestB
+    {
+
+    }
+    public class ReplyB
+    {
+
     }
 
-    public class BChecked1 : IEvent
+    public class MessageCC
     {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; }
+
     }
 
-    public class BChecked2 : IEvent
+    public class OutputE
     {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; }
+
     }
 
-    public class BChecked3 : IEvent
+    public class ProcessedOutputE
     {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; }
+
     }
 
-    public class CChecked : IEvent
+    public class OutputF
     {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; }
-    }
 
-    public class DChecked : IEvent
-    {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; }
     }
+    public class OutputG
+    {
 
-    public class EChecked : IEvent
-    {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; }
     }
+    public class OutputJ
+    {
 
-    public class RootCheckedOk1 : IEvent
-    {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; init; }
     }
-
-    public class RootCheckedOk2 : IEvent
-    {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; init; }
-    }
-
-    public class RootCheckedNotOk : IEvent
-    {
-        public string CorrelationId { get; }
-        public bool IsSuccessfully { get; init; }
-    }
+    #endregion
 }
 ```
