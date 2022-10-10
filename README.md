@@ -4,7 +4,7 @@ Work status: in progress
 
 Possible DSL example of defining BPMN directly from C# code.
 
-```
+```C#
 namespace Saga.Core.Engine.StateMachine.Abstractions
 {
     public class NestedProcess : Process<OutputE>
